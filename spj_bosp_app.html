@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIP-BOSP — Aplikasi SPJ Dana BOSP Otomatis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #0f172a; }
+    h1, h2, h3, .font-display { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .doc-paper {
+      font-family: 'Times New Roman', Times, serif;
+      color: #000;
+      background: #fff;
+      width: 210mm;
+      min-height: 297mm;
+      padding: 18mm 20mm;
+      margin: 0 auto;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+    }
+    @media print {
+      body * { visibility: hidden !important; }
+      #print-area, #print-area * { visibility: visible !important; }
+      #print-area {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        padding: 12mm 15mm !important;
+      }
+      @page { size: A4 portrait; margin: 0; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Top Navbar -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-emerald-500 flex items-center justify-center font-bold text-slate-950 shadow">
+          SPJ
+        </div>
+        <div>
+          <div class="font-display font-bold text-base leading-tight">SIP-BOSP</div>
+          <div class="text-xs text-slate-400">Generator SPJ Dana BOSP & Pajak Otomatis</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="exportBackupJSON()" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+          Backup Data (.json)
+        </button>
+        <label class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer transition">
+          Restore Data
+          <input type="file" accept=".json" onchange="importBackupJSON(event)" class="hidden" />
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="bg-white border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 overflow-x-auto">
+      <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-4 py-3.5 text-sm font-semibold border-b-2 border-emerald-600 text-emerald-700 whitespace-nowrap">
+        1. Dashboard Anggaran
+      </button>
+      <button onclick="switchTab('bku')" id="tab-bku" class="tab-btn px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
+        2. Input BKU & Kalkulator Pajak
+      </button>
+      <button onclick="switchTab('dokumen')" id="tab-dokumen" class="tab-btn px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
+        3. Cetak Dokumen SPJ (A2 / BKU / BAP / SPTJM)
+      </button>
+      <button onclick="switchTab('profil')" id="tab-profil" class="tab-btn px-4 py-3.5 text-sm font-medium border-b-2 border-transparent text-slate-600 hover:text-slate-900 whitespace-nowrap">
+        4. Identitas Sekolah & Pejabat
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
+
+    <!-- TAB 1: DASHBOARD -->
+    <section id="view-dashboard" class="space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        <div>
+          <h1 class="text-xl font-bold text-slate-900" id="dash-school-name">SD NEGERI NUSANTARA 01</h1>
+          <p class="text-sm text-slate-500" id="dash-school-meta">NPSN: 20109999 • Tahun Anggaran 2026 • Dana BOSP Reguler</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="switchTab('bku')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg shadow-sm transition">
+            + Tambah Transaksi Belanja
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Pagu BOSP</div>
+          <div class="text-2xl font-extrabold text-slate-900 mt-1" id="kpi-pagu">Rp 0</div>
+          <div class="text-xs text-slate-400 mt-1">Alokasi Tahunan / Tahap</div>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Realisasi Belanja</div>
+          <div class="text-2xl font-extrabold text-emerald-600 mt-1" id="kpi-realisasi">Rp 0</div>
+          <div class="text-xs text-slate-500 mt-1" id="kpi-persen">Serapan: 0%</div>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Sisa Saldo Anggaran</div>
+          <div class="text-2xl font-extrabold text-blue-600 mt-1" id="kpi-sisa">Rp 0</div>
+          <div class="text-xs text-slate-400 mt-1">Tersedia untuk dibelanjakan</div>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Akumulasi Pajak (PPN/PPh)</div>
+          <div class="text-2xl font-extrabold text-amber-600 mt-1" id="kpi-pajak">Rp 0</div>
+          <div class="text-xs text-slate-400 mt-1">Wajib pungut / setor negara</div>
+        </div>
+      </div>
+
+      <!-- Progress Bar & Recent Transactions -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <h2 class="font-bold text-slate-800 text-base">Komposisi Belanja per Kategori</h2>
+          <div id="category-breakdown" class="space-y-3 text-sm"></div>
+        </div>
+        <div class="lg:col-span-2 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-bold text-slate-800 text-base">Transaksi BKU Terbaru</h2>
+            <button onclick="switchTab('bku')" class="text-xs font-semibold text-emerald-600 hover:underline">Lihat Semua →</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr class="border-b border-slate-200 text-slate-500 text-xs uppercase">
+                  <th class="py-2 pr-3">Tanggal</th>
+                  <th class="py-2 pr-3">No. Bukti</th>
+                  <th class="py-2 pr-3">Uraian Belanja</th>
+                  <th class="py-2 text-right">Bruto</th>
+                </tr>
+              </thead>
+              <tbody id="dash-recent-tbody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: INPUT BKU & PAJAK -->
+    <section id="view-bku" class="hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Form Input -->
+        <div class="lg:col-span-5 bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="font-bold text-slate-900 text-base">Catat Transaksi Belanja BOSP</h2>
+            <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">Auto-Pajak</span>
+          </div>
+          <form id="bku-form" onsubmit="addTransaction(event)" class="space-y-3 text-sm">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Tanggal Transaksi</label>
+                <input type="date" id="tx-date" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:border-emerald-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Nomor Bukti / BKU</label>
+                <input type="text" id="tx-nobukti" placeholder="BPU-001/BOSP/2026" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:border-emerald-500" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Kode Rekening</label>
+                <input type="text" id="tx-koderek" value="5.1.02.01.01.0024" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:border-emerald-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Kategori Belanja</label>
+                <select id="tx-kategori" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:border-emerald-500">
+                  <option value="Belanja Barang & Jasa (ATK/Habis Pakai)">Barang & Jasa (ATK/Habis Pakai)</option>
+                  <option value="Belanja Pemeliharaan Sarpras">Pemeliharaan Sarpras</option>
+                  <option value="Belanja Daya & Jasa (Listrik/Internet)">Daya & Jasa (Listrik/Internet)</option>
+                  <option value="Belanja Honorarium / Jasa Narasumber">Honorarium / Jasa</option>
+                  <option value="Belanja Modal Peralatan & Mesin">Belanja Modal (Aset)</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Uraian Belanja (Sesuai Nota/Kuitansi)</label>
+              <textarea id="tx-uraian" rows="2" placeholder="Contoh: Pembelian Kertas HVS A4 70gr 10 Rim dan Tinta Printer Epson" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:border-emerald-500"></textarea>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Penyedia / Toko</label>
+                <input type="text" id="tx-penyedia" placeholder="CV. Mitra Edukasi" required class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:border-emerald-500" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">NPWP Penyedia (Opsional)</label>
+                <input type="text" id="tx-npwp" placeholder="01.234.567.8-901.000" class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:border-emerald-500" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Nilai Transaksi Bruto (Rp)</label>
+              <input type="number" id="tx-bruto" min="1" step="1" placeholder="2500000" oninput="recalcTaxPreview()" required class="w-full rounded-lg border border-slate-300 px-3 py-2 font-semibold text-slate-900 focus:outline-none focus:border-emerald-500" />
+            </div>
+
+            <!-- Tax Checkboxes -->
+            <div class="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-2">
+              <div class="text-xs font-bold text-slate-700">Kalkulator Pajak Otomatis (DPP = 100/111 jika PPN aktif):</div>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="tax-ppn" onchange="recalcTaxPreview()" class="rounded text-emerald-600" />
+                  <span>PPN (11%)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="tax-pph22" onchange="recalcTaxPreview()" class="rounded text-emerald-600" />
+                  <span>PPh Pasal 22 (1,5%)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="tax-pph23" onchange="recalcTaxPreview()" class="rounded text-emerald-600" />
+                  <span>PPh Pasal 23 (2%)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="tax-pph21" onchange="recalcTaxPreview()" class="rounded text-emerald-600" />
+                  <span>PPh Pasal 21 (5%)</span>
+                </label>
+              </div>
+              <div class="pt-2 border-t border-slate-200 text-xs space-y-1">
+                <div class="flex justify-between text-slate-600"><span>DPP:</span><span id="prev-dpp">Rp 0</span></div>
+                <div class="flex justify-between text-slate-600"><span>PPN (11%):</span><span id="prev-ppn">Rp 0</span></div>
+                <div class="flex justify-between text-slate-600"><span>Total PPh (21/22/23):</span><span id="prev-pph">Rp 0</span></div>
+                <div class="flex justify-between font-bold text-emerald-700 pt-1 border-t border-slate-200">
+                  <span>Netto Diterima Penyedia:</span><span id="prev-netto">Rp 0</span>
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-sm transition">
+              Simpan ke Buku Kas Umum (BKU)
+            </button>
+          </form>
+        </div>
+
+        <!-- BKU Table & CSV Import -->
+        <div class="lg:col-span-7 bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 class="font-bold text-slate-900 text-base">Daftar Buku Kas Umum (BKU)</h2>
+                <p class="text-xs text-slate-500">Klik tombol "SPJ" pada baris transaksi untuk langsung mencetak berkas.</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg cursor-pointer border border-slate-300 transition">
+                  Import CSV ARKAS
+                  <input type="file" accept=".csv" onchange="importCSV(event)" class="hidden" />
+                </label>
+                <button onclick="exportCSV()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg transition">
+                  Export CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-50 border-y border-slate-200 text-slate-600 uppercase">
+                    <th class="py-2.5 px-2">Tgl / Bukti</th>
+                    <th class="py-2.5 px-2">Uraian & Penyedia</th>
+                    <th class="py-2.5 px-2 text-right">Bruto</th>
+                    <th class="py-2.5 px-2 text-right">Pajak</th>
+                    <th class="py-2.5 px-2 text-right">Netto</th>
+                    <th class="py-2.5 px-2 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="bku-tbody" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: GENERATOR DOKUMEN SPJ -->
+    <section id="view-dokumen" class="hidden space-y-6">
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Pilih Jenis Dokumen SPJ</label>
+            <select id="doc-type" onchange="renderDocument()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800">
+              <option value="kuitansi">1. Kuitansi Dinas / Bukti Pengeluaran (Model A2)</option>
+              <option value="bap">2. Berita Acara Pemeriksaan & Penerimaan Barang (BAP)</option>
+              <option value="bku">3. Buku Kas Umum (BKU) & Rekapitulasi Realisasi</option>
+              <option value="sptjm">4. Surat Pernyataan Tanggung Jawab Mutlak (SPTJM)</option>
+            </select>
+          </div>
+          <div id="tx-selector-wrap">
+            <label class="block text-xs font-semibold text-slate-500 mb-1">Pilih Transaksi BKU</label>
+            <select id="doc-tx-select" onchange="renderDocument()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 max-w-xs sm:max-w-md"></select>
+          </div>
+        </div>
+        <button onclick="window.print()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg shadow flex items-center gap-2 transition">
+          <span>Cetak / Simpan PDF (A4)</span>
+        </button>
+      </div>
+
+      <!-- Preview Paper -->
+      <div class="overflow-x-auto pb-8">
+        <div id="print-area" class="doc-paper"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: PROFIL SEKOLAH -->
+    <section id="view-profil" class="hidden max-w-3xl mx-auto">
+      <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Pengaturan Identitas Sekolah & Pejabat Penandatangan</h2>
+          <p class="text-xs text-slate-500">Data ini otomatis muncul pada Kop Surat, Kuitansi A2, BKU, BAP, dan SPTJM.</p>
+        </div>
+        <form onsubmit="saveProfile(event)" class="space-y-4 text-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Pemerintah Kabupaten / Kota</label>
+              <input type="text" id="prof-pemda" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Dinas Pendidikan</label>
+              <input type="text" id="prof-dinas" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Sekolah</label>
+              <input type="text" id="prof-sekolah" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">NPSN</label>
+              <input type="text" id="prof-npsn" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Alamat Lengkap Sekolah</label>
+            <input type="text" id="prof-alamat" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Tahun Anggaran</label>
+              <input type="text" id="prof-ta" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Tahap / Periode</label>
+              <input type="text" id="prof-tahap" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Total Pagu BOSP (Rp)</label>
+              <input type="number" id="prof-pagu" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+          </div>
+
+          <hr class="border-slate-200" />
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Kepala Sekolah</label>
+              <input type="text" id="prof-kepsek" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">NIP Kepala Sekolah</label>
+              <input type="text" id="prof-nip-kepsek" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Bendahara BOSP</label>
+              <input type="text" id="prof-bendahara" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">NIP Bendahara BOSP</label>
+              <input type="text" id="prof-nip-bendahara" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Nama Pemeriksa Barang (BAP)</label>
+              <input type="text" id="prof-pemeriksa" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">NIP Pemeriksa Barang</label>
+              <input type="text" id="prof-nip-pemeriksa" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Kota/Kabupaten Tanda Tangan</label>
+              <input type="text" id="prof-kota" class="w-full rounded-lg border border-slate-300 px-3 py-2" required />
+            </div>
+          </div>
+
+          <div class="pt-2 flex justify-end">
+            <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-sm transition">
+              Simpan Identitas Sekolah
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    const STORAGE_KEY_PROFILE = 'sip_bosp_profile_v1';
+    const STORAGE_KEY_TX = 'sip_bosp_transactions_v1';
+
+    const defaultProfile = {
+      pemda: 'PEMERINTAH KABUPATEN NUSANTARA',
+      dinas: 'DINAS PENDIDIKAN DAN KEBUDAYAAN',
+      sekolah: 'SD NEGERI NUSANTARA 01',
+      npsn: '20109999',
+      alamat: 'Jl. Merdeka Pendidikan No. 45, Kec. Cendekia, Kab. Nusantara',
+      ta: '2026',
+      tahap: 'Tahap I (Januari - Juni 2026)',
+      pagu: 120000000,
+      kepsek: 'Drs. H. Ahmad Fauzi, M.Pd.',
+      nipKepsek: '19720514 199803 1 006',
+      bendahara: 'Siti Aminah, S.Pd.',
+      nipBendahara: '19861120 201001 2 014',
+      pemeriksa: 'Budi Santoso, S.Pd.',
+      nipPemeriksa: '19840312 200902 1 003',
+      kota: 'Nusantara'
+    };
+
+    const defaultTransactions = [
+      {
+        id: 'tx-1',
+        date: '2026-02-14',
+        noBukti: 'BPU-001/BOSP/2026',
+        kodeRek: '5.1.02.01.01.0024',
+        kategori: 'Belanja Barang & Jasa (ATK/Habis Pakai)',
+        uraian: 'Pembelian Kertas HVS A4 70gr (15 Rim), Spidol Boardmarker, dan Tinta Printer Epson Original untuk administrasi pembelajaran',
+        penyedia: 'CV. Mitra Edukasi Mandiri',
+        npwp: '02.451.889.1-412.000',
+        bruto: 2775000,
+        dpp: 2500000,
+        ppn: 275000,
+        pph22: 37500,
+        pph23: 0,
+        pph21: 0,
+        totalPajak: 312500,
+        netto: 2462500
+      },
+      {
+        id: 'tx-2',
+        date: '2026-03-05',
+        noBukti: 'BPU-002/BOSP/2026',
+        kodeRek: '5.1.02.03.02.0117',
+        kategori: 'Belanja Pemeliharaan Sarpras',
+        uraian: 'Jasa Servis Berkala dan Pengisian Freon 4 Unit AC Ruang Kelas & Perpustakaan',
+        penyedia: 'CV. Sejuk Teknik Abadi',
+        npwp: '03.112.409.5-412.000',
+        bruto: 1600000,
+        dpp: 1600000,
+        ppn: 0,
+        pph22: 0,
+        pph23: 32000,
+        pph21: 0,
+        totalPajak: 32000,
+        netto: 1568000
+      }
+    ];
+
+    let profile = JSON.parse(localStorage.getItem(STORAGE_KEY_PROFILE)) || defaultProfile;
+    let transactions = JSON.parse(localStorage.getItem(STORAGE_KEY_TX)) || defaultTransactions;
+
+    function formatRp(num) {
+      return 'Rp ' + Math.round(num || 0).toLocaleString('id-ID');
+    }
+
+    function formatDateIndo(iso) {
+      if (!iso) return '-';
+      const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      const parts = iso.split('-');
+      if (parts.length !== 3) return iso;
+      return `${parseInt(parts[2], 10)} ${months[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
+    }
+
+    function terbilang(n) {
+      n = Math.floor(Math.abs(n));
+      const satuan = ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'];
+      if (n < 12) return satuan[n];
+      if (n < 20) return terbilang(n - 10) + ' Belas';
+      if (n < 100) return terbilang(Math.floor(n / 10)) + ' Puluh ' + terbilang(n % 10);
+      if (n < 200) return 'Seratus ' + terbilang(n - 100);
+      if (n < 1000) return terbilang(Math.floor(n / 100)) + ' Ratus ' + terbilang(n % 100);
+      if (n < 2000) return 'Seribu ' + terbilang(n - 1000);
+      if (n < 1000000) return terbilang(Math.floor(n / 1000)) + ' Ribu ' + terbilang(n % 1000);
+      if (n < 1000000000) return terbilang(Math.floor(n / 1000000)) + ' Juta ' + terbilang(n % 1000000);
+      if (n < 1000000000000) return terbilang(Math.floor(n / 1000000000)) + ' Miliar ' + terbilang(n % 1000000000);
+      return '';
+    }
+
+    function terbilangRupiah(n) {
+      const text = terbilang(n).replace(/\s+/g, ' ').trim();
+      return (text ? text : 'Nol') + ' Rupiah';
+    }
+
+    function switchTab(tabName) {
+      ['dashboard', 'bku', 'dokumen', 'profil'].forEach(t => {
+        document.getElementById('view-' + t).classList.add('hidden');
+        const btn = document.getElementById('tab-' + t);
+        btn.classList.remove('border-emerald-600', 'text-emerald-700', 'font-semibold');
+        btn.classList.add('border-transparent', 'text-slate-600', 'font-medium');
+      });
+      document.getElementById('view-' + tabName).classList.remove('hidden');
+      const activeBtn = document.getElementById('tab-' + tabName);
+      activeBtn.classList.remove('border-transparent', 'text-slate-600', 'font-medium');
+      activeBtn.classList.add('border-emerald-600', 'text-emerald-700', 'font-semibold');
+
+      if (tabName === 'dokumen') {
+        populateDocTxSelect();
+        renderDocument();
+      }
+    }
+
+    function calcTaxes(bruto, usePpn, use22, use23, use21) {
+      const dpp = usePpn ? Math.round(bruto * (100 / 111)) : bruto;
+      const ppn = usePpn ? (bruto - dpp) : 0;
+      const pph22 = use22 ? Math.round(dpp * 0.015) : 0;
+      const pph23 = use23 ? Math.round(dpp * 0.02) : 0;
+      const pph21 = use21 ? Math.round(bruto * 0.05) : 0;
+      const totalPajak = ppn + pph22 + pph23 + pph21;
+      const netto = bruto - totalPajak;
+      return { dpp, ppn, pph22, pph23, pph21, totalPajak, netto };
+    }
+
+    function recalcTaxPreview() {
+      const bruto = parseFloat(document.getElementById('tx-bruto').value) || 0;
+      const res = calcTaxes(
+        bruto,
+        document.getElementById('tax-ppn').checked,
+        document.getElementById('tax-pph22').checked,
+        document.getElementById('tax-pph23').checked,
+        document.getElementById('tax-pph21').checked
+      );
+      document.getElementById('prev-dpp').textContent = formatRp(res.dpp);
+      document.getElementById('prev-ppn').textContent = formatRp(res.ppn);
+      document.getElementById('prev-pph').textContent = formatRp(res.pph22 + res.pph23 + res.pph21);
+      document.getElementById('prev-netto').textContent = formatRp(res.netto);
+    }
+
+    function addTransaction(e) {
+      e.preventDefault();
+      const bruto = parseFloat(document.getElementById('tx-bruto').value) || 0;
+      const taxes = calcTaxes(
+        bruto,
+        document.getElementById('tax-ppn').checked,
+        document.getElementById('tax-pph22').checked,
+        document.getElementById('tax-pph23').checked,
+        document.getElementById('tax-pph21').checked
+      );
+      const tx = {
+        id: 'tx-' + Date.now(),
+        date: document.getElementById('tx-date').value,
+        noBukti: document.getElementById('tx-nobukti').value.trim(),
+        kodeRek: document.getElementById('tx-koderek').value.trim(),
+        kategori: document.getElementById('tx-kategori').value,
+        uraian: document.getElementById('tx-uraian').value.trim(),
+        penyedia: document.getElementById('tx-penyedia').value.trim(),
+        npwp: document.getElementById('tx-npwp').value.trim() || '-',
+        bruto,
+        ...taxes
+      };
+      transactions.unshift(tx);
+      saveTransactions();
+      e.target.reset();
+      document.getElementById('tx-date').valueAsDate = new Date();
+      recalcTaxPreview();
+      refreshAll();
+    }
+
+    function deleteTransaction(id) {
+      if (!confirm('Hapus transaksi ini dari BKU?')) return;
+      transactions = transactions.filter(t => t.id !== id);
+      saveTransactions();
+      refreshAll();
+    }
+
+    function printSingleTx(id) {
+      switchTab('dokumen');
+      document.getElementById('doc-type').value = 'kuitansi';
+      document.getElementById('doc-tx-select').value = id;
+      renderDocument();
+    }
+
+    function saveTransactions() {
+      localStorage.setItem(STORAGE_KEY_TX, JSON.stringify(transactions));
+    }
+
+    function saveProfile(e) {
+      e.preventDefault();
+      profile = {
+        pemda: document.getElementById('prof-pemda').value.trim(),
+        dinas: document.getElementById('prof-dinas').value.trim(),
+        sekolah: document.getElementById('prof-sekolah').value.trim(),
+        npsn: document.getElementById('prof-npsn').value.trim(),
+        alamat: document.getElementById('prof-alamat').value.trim(),
+        ta: document.getElementById('prof-ta').value.trim(),
+        tahap: document.getElementById('prof-tahap').value.trim(),
+        pagu: parseFloat(document.getElementById('prof-pagu').value) || 0,
+        kepsek: document.getElementById('prof-kepsek').value.trim(),
+        nipKepsek: document.getElementById('prof-nip-kepsek').value.trim(),
+        bendahara: document.getElementById('prof-bendahara').value.trim(),
+        nipBendahara: document.getElementById('prof-nip-bendahara').value.trim(),
+        pemeriksa: document.getElementById('prof-pemeriksa').value.trim(),
+        nipPemeriksa: document.getElementById('prof-nip-pemeriksa').value.trim(),
+        kota: document.getElementById('prof-kota').value.trim()
+      };
+      localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(profile));
+      refreshAll();
+      alert('Identitas sekolah & pejabat berhasil disimpan.');
+    }
+
+    function loadProfileForm() {
+      document.getElementById('prof-pemda').value = profile.pemda;
+      document.getElementById('prof-dinas').value = profile.dinas;
+      document.getElementById('prof-sekolah').value = profile.sekolah;
+      document.getElementById('prof-npsn').value = profile.npsn;
+      document.getElementById('prof-alamat').value = profile.alamat;
+      document.getElementById('prof-ta').value = profile.ta;
+      document.getElementById('prof-tahap').value = profile.tahap;
+      document.getElementById('prof-pagu').value = profile.pagu;
+      document.getElementById('prof-kepsek').value = profile.kepsek;
+      document.getElementById('prof-nip-kepsek').value = profile.nipKepsek;
+      document.getElementById('prof-bendahara').value = profile.bendahara;
+      document.getElementById('prof-nip-bendahara').value = profile.nipBendahara;
+      document.getElementById('prof-pemeriksa').value = profile.pemeriksa;
+      document.getElementById('prof-nip-pemeriksa').value = profile.nipPemeriksa;
+      document.getElementById('prof-kota').value = profile.kota;
+    }
+
+    function refreshAll() {
+      // Header & KPIs
+      document.getElementById('dash-school-name').textContent = profile.sekolah;
+      document.getElementById('dash-school-meta').textContent = `NPSN: ${profile.npsn} • Tahun Anggaran ${profile.ta} • ${profile.tahap}`;
+
+      const totalBruto = transactions.reduce((s, t) => s + t.bruto, 0);
+      const totalPajak = transactions.reduce((s, t) => s + t.totalPajak, 0);
+      const sisa = profile.pagu - totalBruto;
+      const persen = profile.pagu > 0 ? ((totalBruto / profile.pagu) * 100).toFixed(1) : 0;
+
+      document.getElementById('kpi-pagu').textContent = formatRp(profile.pagu);
+      document.getElementById('kpi-realisasi').textContent = formatRp(totalBruto);
+      document.getElementById('kpi-persen').textContent = `Serapan: ${persen}% dari pagu`;
+      document.getElementById('kpi-sisa').textContent = formatRp(sisa);
+      document.getElementById('kpi-pajak').textContent = formatRp(totalPajak);
+
+      // Category breakdown
+      const catMap = {};
+      transactions.forEach(t => {
+        catMap[t.kategori] = (catMap[t.kategori] || 0) + t.bruto;
+      });
+      const catContainer = document.getElementById('category-breakdown');
+      if (Object.keys(catMap).length === 0) {
+        catContainer.innerHTML = '<div class="text-slate-400 text-xs">Belum ada transaksi tercatat.</div>';
+      } else {
+        catContainer.innerHTML = Object.entries(catMap).map(([k, v]) => {
+          const pct = totalBruto > 0 ? Math.round((v / totalBruto) * 100) : 0;
+          return `
+            <div>
+              <div class="flex justify-between text-xs font-medium mb-1">
+                <span class="text-slate-700 truncate pr-2">${k}</span>
+                <span class="text-slate-900 font-semibold">${formatRp(v)} (${pct}%)</span>
+              </div>
+              <div class="w-full bg-slate-100 rounded-full h-2">
+                <div class="bg-emerald-500 h-2 rounded-full" style="width:${pct}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Recent dashboard table
+      const dashTbody = document.getElementById('dash-recent-tbody');
+      dashTbody.innerHTML = transactions.slice(0, 5).map(t => `
+        <tr>
+          <td class="py-2.5 pr-3 whitespace-nowrap text-slate-600">${formatDateIndo(t.date)}</td>
+          <td class="py-2.5 pr-3 font-medium text-slate-800 whitespace-nowrap">${t.noBukti}</td>
+          <td class="py-2.5 pr-3 text-slate-700">${t.uraian}</td>
+          <td class="py-2.5 text-right font-semibold text-slate-900 whitespace-nowrap">${formatRp(t.bruto)}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="4" class="py-4 text-center text-slate-400">Belum ada transaksi.</td></tr>';
+
+      // Full BKU Table
+      const bkuTbody = document.getElementById('bku-tbody');
+      bkuTbody.innerHTML = transactions.map(t => `
+        <tr class="hover:bg-slate-50">
+          <td class="py-2.5 px-2 whitespace-nowrap">
+            <div class="font-semibold text-slate-800">${t.noBukti}</div>
+            <div class="text-slate-400">${formatDateIndo(t.date)}</div>
+          </td>
+          <td class="py-2.5 px-2">
+            <div class="font-medium text-slate-800">${t.uraian}</div>
+            <div class="text-slate-500">Penyedia: ${t.penyedia} • Rek: ${t.kodeRek}</div>
+          </td>
+          <td class="py-2.5 px-2 text-right font-semibold whitespace-nowrap">${formatRp(t.bruto)}</td>
+          <td class="py-2.5 px-2 text-right text-amber-700 whitespace-nowrap">${formatRp(t.totalPajak)}</td>
+          <td class="py-2.5 px-2 text-right font-bold text-emerald-700 whitespace-nowrap">${formatRp(t.netto)}</td>
+          <td class="py-2.5 px-2 text-center whitespace-nowrap space-x-1">
+            <button onclick="printSingleTx('${t.id}')" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold rounded border border-emerald-200">SPJ</button>
+            <button onclick="deleteTransaction('${t.id}')" class="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-semibold rounded border border-rose-200">Hapus</button>
+          </td>
+        </tr>
+      `).join('') || '<tr><td colspan="6" class="py-6 text-center text-slate-400">Belum ada data BKU. Silakan input transaksi di formulir samping.</td></tr>';
+
+      populateDocTxSelect();
+    }
+
+    function populateDocTxSelect() {
+      const sel = document.getElementById('doc-tx-select');
+      const prevVal = sel.value;
+      sel.innerHTML = transactions.map(t => `<option value="${t.id}">${t.noBukti} — ${t.uraian.slice(0, 45)}... (${formatRp(t.bruto)})</option>`).join('');
+      if (prevVal && transactions.some(t => t.id === prevVal)) sel.value = prevVal;
+    }
+
+    function getKopSuratHTML() {
+      return `
+        <div style="border-bottom: 3px double #000; padding-bottom: 8px; margin-bottom: 16px; text-align: center;">
+          <div style="font-size: 13pt; font-weight: bold; letter-spacing: 0.5px;">${profile.pemda.toUpperCase()}</div>
+          <div style="font-size: 14pt; font-weight: bold;">${profile.dinas.toUpperCase()}</div>
+          <div style="font-size: 15pt; font-weight: bold; margin-top: 2px;">${profile.sekolah.toUpperCase()}</div>
+          <div style="font-size: 10pt; margin-top: 2px;">NPSN: ${profile.npsn} | Alamat: ${profile.alamat}</div>
+        </div>
+      `;
+    }
+
+    function renderDocument() {
+      const docType = document.getElementById('doc-type').value;
+      const txWrap = document.getElementById('tx-selector-wrap');
+      txWrap.style.display = (docType === 'kuitansi' || docType === 'bap') ? 'block' : 'none';
+
+      const txId = document.getElementById('doc-tx-select').value;
+      const tx = transactions.find(t => t.id === txId) || transactions[0];
+      const container = document.getElementById('print-area');
+
+      if ((docType === 'kuitansi' || docType === 'bap') && !tx) {
+        container.innerHTML = '<p style="text-align:center; padding-top:40px;">Belum ada transaksi BKU untuk dicetak.</p>';
+        return;
+      }
+
+      if (docType === 'kuitansi') {
+        container.innerHTML = `
+          ${getKopSuratHTML()}
+          <div style="text-align: center; margin-bottom: 14px;">
+            <div style="font-size: 13pt; font-weight: bold; text-decoration: underline;">KUITANSI / BUKTI PENGELUARAN (MODEL A2)</div>
+            <div style="font-size: 10.5pt;">Nomor Bukti: <strong>${tx.noBukti}</strong></div>
+          </div>
+
+          <table style="width: 100%; font-size: 11pt; border-collapse: collapse; margin-bottom: 12px;">
+            <tr><td style="width: 180px; padding: 3px 0;">Tahun Anggaran</td><td style="width: 15px;">:</td><td>${profile.ta} (${profile.tahap})</td></tr>
+            <tr><td style="padding: 3px 0;">Kode Rekening</td><td>:</td><td>${tx.kodeRek}</td></tr>
+            <tr><td style="padding: 3px 0;">Kategori Belanja</td><td>:</td><td>${tx.kategori}</td></tr>
+            <tr><td style="padding: 3px 0;">Sudah Terima Dari</td><td>:</td><td>Bendahara Dana BOSP ${profile.sekolah}</td></tr>
+            <tr><td style="padding: 3px 0;">Uang Sejumlah</td><td>:</td><td style="font-weight: bold; background: #f1f5f9; padding: 4px 8px; border: 1px solid #94a3b8;">${formatRp(tx.bruto)}</td></tr>
+            <tr><td style="padding: 3px 0; vertical-align: top;">Terbilang</td><td style="vertical-align: top;">:</td><td style="font-style: italic; font-weight: bold;"># ${terbilangRupiah(tx.bruto)} #</td></tr>
+            <tr><td style="padding: 3px 0; vertical-align: top;">Untuk Pembayaran</td><td style="vertical-align: top;">:</td><td>${tx.uraian}</td></tr>
+          </table>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 10pt; margin: 14px 0;">
+            <tr style="background: #f8fafc;">
+              <th style="border: 1px solid #000; padding: 6px; text-align: left;">Rincian Perhitungan Pembayaran & Pajak</th>
+              <th style="border: 1px solid #000; padding: 6px; text-align: right; width: 160px;">Jumlah (Rp)</th>
+            </tr>
+            <tr><td style="border: 1px solid #000; padding: 5px;">Nilai Belanja Bruto</td><td style="border: 1px solid #000; padding: 5px; text-align: right;">${formatRp(tx.bruto)}</td></tr>
+            <tr><td style="border: 1px solid #000; padding: 5px;">Potongan PPN (11%)</td><td style="border: 1px solid #000; padding: 5px; text-align: right;">${formatRp(tx.ppn)}</td></tr>
+            <tr><td style="border: 1px solid #000; padding: 5px;">Potongan PPh Pasal 21 / 22 / 23</td><td style="border: 1px solid #000; padding: 5px; text-align: right;">${formatRp(tx.pph21 + tx.pph22 + tx.pph23)}</td></tr>
+            <tr style="font-weight: bold; background: #f8fafc;">
+              <td style="border: 1px solid #000; padding: 6px;">Jumlah Netto Dibayarkan kepada Penyedia (${tx.penyedia})</td>
+              <td style="border: 1px solid #000; padding: 6px; text-align: right;">${formatRp(tx.netto)}</td>
+            </tr>
+          </table>
+
+          <table style="width: 100%; font-size: 10.5pt; margin-top: 22px; text-align: center;">
+            <tr>
+              <td style="width: 33%; vertical-align: top;">
+                Mengetahui / Setuju Dibayar,<br/>Kepala Sekolah<br/><br/><br/><br/>
+                <u><strong>${profile.kepsek}</strong></u><br/>NIP. ${profile.nipKepsek}
+              </td>
+              <td style="width: 33%; vertical-align: top;">
+                Lunas Dibayar Tgl: ${formatDateIndo(tx.date)}<br/>Bendahara Dana BOSP<br/><br/><br/><br/>
+                <u><strong>${profile.bendahara}</strong></u><br/>NIP. ${profile.nipBendahara}
+              </td>
+              <td style="width: 34%; vertical-align: top;">
+                ${profile.kota}, ${formatDateIndo(tx.date)}<br/>Yang Menerima / Penyedia<br/><br/><br/><br/>
+                <u><strong>${tx.penyedia}</strong></u><br/>NPWP: ${tx.npwp}
+              </td>
+            </tr>
+          </table>
+        `;
+      } else if (docType === 'bap') {
+        container.innerHTML = `
+          ${getKopSuratHTML()}
+          <div style="text-align: center; margin-bottom: 14px;">
+            <div style="font-size: 13pt; font-weight: bold; text-decoration: underline;">BERITA ACARA PEMERIKSAAN DAN PENERIMAAN BARANG / JASA</div>
+            <div style="font-size: 10.5pt;">Nomor: BAP/${tx.noBukti}</div>
+          </div>
+
+          <p style="font-size: 11pt; line-height: 1.5; text-align: justify;">
+            Pada hari ini, tanggal <strong>${formatDateIndo(tx.date)}</strong>, bertempat di <strong>${profile.sekolah}</strong>, kami yang bertanda tangan di bawah ini selaku Pemeriksa dan Penerima Barang/Jasa Dana BOSP Tahun Anggaran ${profile.ta} telah melakukan pemeriksaan fisik terhadap hasil pengadaan barang/jasa dari penyedia <strong>${tx.penyedia}</strong> berdasarkan Bukti Pengeluaran Nomor <strong>${tx.noBukti}</strong> dengan rincian sebagai berikut:
+          </p>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 10.5pt; margin: 14px 0;">
+            <thead>
+              <tr style="background: #f1f5f9;">
+                <th style="border: 1px solid #000; padding: 6px; width: 40px;">No</th>
+                <th style="border: 1px solid #000; padding: 6px; text-align: left;">Uraian Barang / Jasa</th>
+                <th style="border: 1px solid #000; padding: 6px; text-align: right; width: 150px;">Nilai (Rp)</th>
+                <th style="border: 1px solid #000; padding: 6px; text-align: center; width: 120px;">Hasil Pemeriksaan</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="border: 1px solid #000; padding: 6px; text-align: center;">1</td>
+                <td style="border: 1px solid #000; padding: 6px;">${tx.uraian}</td>
+                <td style="border: 1px solid #000; padding: 6px; text-align: right;">${formatRp(tx.bruto)}</td>
+                <td style="border: 1px solid #000; padding: 6px; text-align: center;">Baik / Lengkap / Sesuai</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p style="font-size: 11pt; line-height: 1.5; text-align: justify;">
+            Berdasarkan hasil pemeriksaan tersebut, barang/jasa dinyatakan dalam keadaan baik, cukup, dan sesuai dengan spesifikasi pesanan untuk diterima dan dicatat dalam inventaris sekolah. Demikian Berita Acara ini dibuat dengan sebenarnya untuk dipergunakan sebagai kelengkapan SPJ Dana BOSP.
+          </p>
+
+          <table style="width: 100%; font-size: 10.5pt; margin-top: 28px; text-align: center;">
+            <tr>
+              <td style="width: 50%; vertical-align: top;">
+                Penyedia Barang / Jasa,<br/><br/><br/><br/>
+                <u><strong>${tx.penyedia}</strong></u>
+              </td>
+              <td style="width: 50%; vertical-align: top;">
+                ${profile.kota}, ${formatDateIndo(tx.date)}<br/>Pemeriksa / Penerima Barang,<br/><br/><br/><br/>
+                <u><strong>${profile.pemeriksa}</strong></u><br/>NIP. ${profile.nipPemeriksa}
+              </td>
+            </tr>
+            <tr>
+              <td colspan="2" style="padding-top: 24px;">
+                Mengetahui,<br/>Kepala ${profile.sekolah}<br/><br/><br/><br/>
+                <u><strong>${profile.kepsek}</strong></u><br/>NIP. ${profile.nipKepsek}
+              </td>
+            </tr>
+          </table>
+        `;
+      } else if (docType === 'bku') {
+        let saldo = profile.pagu;
+        const rows = [...transactions].reverse().map((t, idx) => {
+          saldo -= t.bruto;
+          return `
+            <tr>
+              <td style="border: 1px solid #000; padding: 4px; text-align: center;">${idx + 1}</td>
+              <td style="border: 1px solid #000; padding: 4px;">${formatDateIndo(t.date)}</td>
+              <td style="border: 1px solid #000; padding: 4px;">${t.noBukti}</td>
+              <td style="border: 1px solid #000; padding: 4px;">${t.uraian}</td>
+              <td style="border: 1px solid #000; padding: 4px; text-align: right;">-</td>
+              <td style="border: 1px solid #000; padding: 4px; text-align: right;">${formatRp(t.bruto)}</td>
+              <td style="border: 1px solid #000; padding: 4px; text-align: right;">${formatRp(saldo)}</td>
+            </tr>
+          `;
+        }).join('');
+
+        const totalKeluar = transactions.reduce((s, t) => s + t.bruto, 0);
+
+        container.innerHTML = `
+          ${getKopSuratHTML()}
+          <div style="text-align: center; margin-bottom: 12px;">
+            <div style="font-size: 13pt; font-weight: bold; text-decoration: underline;">BUKU KAS UMUM (BKU) DANA BOSP</div>
+            <div style="font-size: 10.5pt;">Tahun Anggaran ${profile.ta} — ${profile.tahap}</div>
+          </div>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 9pt; margin-top: 10px;">
+            <thead>
+              <tr style="background: #f1f5f9;">
+                <th style="border: 1px solid #000; padding: 5px;">No</th>
+                <th style="border: 1px solid #000; padding: 5px;">Tanggal</th>
+                <th style="border: 1px solid #000; padding: 5px;">No. Bukti</th>
+                <th style="border: 1px solid #000; padding: 5px;">Uraian Transaksi</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: right;">Penerimaan</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: right;">Pengeluaran</th>
+                <th style="border: 1px solid #000; padding: 5px; text-align: right;">Saldo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="border: 1px solid #000; padding: 4px; text-align: center;">-</td>
+                <td style="border: 1px solid #000; padding: 4px;">Awal Periode</td>
+                <td style="border: 1px solid #000; padding: 4px;">PAGU-BOSP</td>
+                <td style="border: 1px solid #000; padding: 4px; font-weight: bold;">Penerimaan Dana BOSP (${profile.tahap})</td>
+                <td style="border: 1px solid #000; padding: 4px; text-align: right;">${formatRp(profile.pagu)}</td>
+                <td style="border: 1px solid #000; padding: 4px; text-align: right;">-</td>
+                <td style="border: 1px solid #000; padding: 4px; text-align: right; font-weight: bold;">${formatRp(profile.pagu)}</td>
+              </tr>
+              ${rows}
+              <tr style="font-weight: bold; background: #f8fafc;">
+                <td colspan="4" style="border: 1px solid #000; padding: 5px; text-align: right;">JUMLAH TOTAL</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: right;">${formatRp(profile.pagu)}</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: right;">${formatRp(totalKeluar)}</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: right;">${formatRp(profile.pagu - totalKeluar)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table style="width: 100%; font-size: 10.5pt; margin-top: 26px; text-align: center;">
+            <tr>
+              <td style="width: 50%;">Mengetahui,<br/>Kepala Sekolah<br/><br/><br/><br/><u><strong>${profile.kepsek}</strong></u><br/>NIP. ${profile.nipKepsek}</td>
+              <td style="width: 50%;">${profile.kota}, Akhir Periode ${profile.ta}<br/>Bendahara Dana BOSP<br/><br/><br/><br/><u><strong>${profile.bendahara}</strong></u><br/>NIP. ${profile.nipBendahara}</td>
+            </tr>
+          </table>
+        `;
+      } else if (docType === 'sptjm') {
+        const totalKeluar = transactions.reduce((s, t) => s + t.bruto, 0);
+        const sisa = profile.pagu - totalKeluar;
+        container.innerHTML = `
+          ${getKopSuratHTML()}
+          <div style="text-align: center; margin-bottom: 16px;">
+            <div style="font-size: 13pt; font-weight: bold; text-decoration: underline;">SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK (SPTJM)</div>
+            <div style="font-size: 10.5pt;">Nomor: 421.2 / SPTJM-BOSP / ${profile.ta}</div>
+          </div>
+
+          <p style="font-size: 11pt; line-height: 1.5;">Yang bertanda tangan di bawah ini:</p>
+          <table style="width: 100%; font-size: 11pt; margin-bottom: 12px;">
+            <tr><td style="width: 180px;">Nama</td><td style="width: 15px;">:</td><td><strong>${profile.kepsek}</strong></td></tr>
+            <tr><td>NIP</td><td>:</td><td>${profile.nipKepsek}</td></tr>
+            <tr><td>Jabatan</td><td>:</td><td>Kepala ${profile.sekolah}</td></tr>
+            <tr><td>NPSN / Alamat</td><td>:</td><td>${profile.npsn} — ${profile.alamat}</td></tr>
+          </table>
+
+          <p style="font-size: 11pt; line-height: 1.6; text-align: justify;">
+            Menyatakan dengan sesungguhnya bahwa saya bertanggung jawab penuh atas penggunaan Dana Bantuan Operasional Satuan Pendidikan (BOSP) Tahun Anggaran <strong>${profile.ta}</strong> (${profile.tahap}) dengan rincian realisasi sebagai berikut:
+          </p>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 10.5pt; margin: 14px 0;">
+            <tr><td style="border: 1px solid #000; padding: 6px;">1. Jumlah Penerimaan Dana BOSP</td><td style="border: 1px solid #000; padding: 6px; text-align: right; font-weight: bold;">${formatRp(profile.pagu)}</td></tr>
+            <tr><td style="border: 1px solid #000; padding: 6px;">2. Jumlah Realisasi Pengeluaran Belanja</td><td style="border: 1px solid #000; padding: 6px; text-align: right; font-weight: bold;">${formatRp(totalKeluar)}</td></tr>
+            <tr><td style="border: 1px solid #000; padding: 6px;">3. Sisa Saldo Dana BOSP</td><td style="border: 1px solid #000; padding: 6px; text-align: right; font-weight: bold;">${formatRp(sisa)}</td></tr>
+          </table>
+
+          <p style="font-size: 11pt; line-height: 1.6; text-align: justify;">
+            Bukti-bukti pengeluaran yang sah dan lengkap atas penggunaan dana tersebut di atas disimpan pada satuan pendidikan kami untuk kelengkapan administrasi dan keperluan pemeriksaan aparat pengawas fungsional. Apabila di kemudian hari ditemukan ketidaksesuaian atau kerugian negara akibat penggunaan dana tersebut, saya bersedia bertanggung jawab penuh sesuai ketentuan peraturan perundang-undangan.
+          </p>
+
+          <table style="width: 100%; font-size: 10.5pt; margin-top: 28px; text-align: center;">
+            <tr>
+              <td style="width: 50%;"></td>
+              <td style="width: 50%;">
+                ${profile.kota}, ${formatDateIndo(new Date().toISOString().slice(0, 10))}<br/>
+                Kepala ${profile.sekolah},<br/><br/>
+                <span style="font-size: 8.5pt; color: #64748b;">[Materai Rp 10.000]</span><br/><br/>
+                <u><strong>${profile.kepsek}</strong></u><br/>NIP. ${profile.nipKepsek}
+              </td>
+            </tr>
+          </table>
+        `;
+      }
+    }
+
+    function exportCSV() {
+      const headers = ['Tanggal', 'No_Bukti', 'Kode_Rekening', 'Kategori', 'Uraian', 'Penyedia', 'NPWP', 'Bruto', 'PPN', 'PPh22', 'PPh23', 'PPh21', 'Netto'];
+      const rows = transactions.map(t => [
+        t.date, t.noBukti, t.kodeRek, `"${t.kategori}"`, `"${t.uraian.replace(/"/g, '""')}"`,
+        `"${t.penyedia}"`, t.npwp, t.bruto, t.ppn, t.pph22, t.pph23, t.pph21, t.netto
+      ].join(','));
+      const blob = new Blob([headers.join(',') + '
+' + rows.join('
+')], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `BKU_BOSP_${profile.sekolah.replace(/\s+/g, '_')}.csv`;
+      a.click();
+    }
+
+    function importCSV(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const lines = e.target.result.split(/?
+/).filter(Boolean);
+        let added = 0;
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(',');
+          if (cols.length >= 8) {
+            const bruto = parseFloat(cols[7]) || 0;
+            const ppn = parseFloat(cols[8]) || 0;
+            const pph22 = parseFloat(cols[9]) || 0;
+            const pph23 = parseFloat(cols[10]) || 0;
+            const pph21 = parseFloat(cols[11]) || 0;
+            const totalPajak = ppn + pph22 + pph23 + pph21;
+            transactions.unshift({
+              id: 'tx-imp-' + Date.now() + '-' + i,
+              date: cols[0] || new Date().toISOString().slice(0, 10),
+              noBukti: cols[1] || `IMP-${i}`,
+              kodeRek: cols[2] || '5.1.02.01.01',
+              kategori: (cols[3] || 'Belanja Barang & Jasa').replace(/"/g, ''),
+              uraian: (cols[4] || 'Transaksi Impor CSV').replace(/"/g, ''),
+              penyedia: (cols[5] || '-').replace(/"/g, ''),
+              npwp: cols[6] || '-',
+              bruto,
+              dpp: bruto - ppn,
+              ppn, pph22, pph23, pph21,
+              totalPajak,
+              netto: bruto - totalPajak
+            });
+            added++;
+          }
+        }
+        saveTransactions();
+        refreshAll();
+        alert(`Berhasil mengimpor ${added} transaksi dari file CSV.`);
+      };
+      reader.readAsText(file);
+    }
+
+    function exportBackupJSON() {
+      const payload = JSON.stringify({ profile, transactions }, null, 2);
+      const blob = new Blob([payload], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `Backup_SIP_BOSP_${profile.ta}.json`;
+      a.click();
+    }
+
+    function importBackupJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (data.profile) profile = data.profile;
+          if (Array.isArray(data.transactions)) transactions = data.transactions;
+          localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(profile));
+          saveTransactions();
+          loadProfileForm();
+          refreshAll();
+          alert('Data cadangan berhasil dipulihkan!');
+        } catch (err) {
+          alert('Format file JSON tidak valid.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // Init
+    document.getElementById('tx-date').valueAsDate = new Date();
+    loadProfileForm();
+    refreshAll();
+  </script>
+</body>
+</html>
